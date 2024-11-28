@@ -14,8 +14,8 @@ namespace webotsQtUtils {
 
   class ScalarSensorWidget : public SensorWidget {
   public:
-    ScalarSensorWidget(Device *device, QWidget *parent = NULL);
-    virtual ~ScalarSensorWidget() {}
+    explicit ScalarSensorWidget(Device *device, QWidget *parent = NULL);
+    virtual ~ScalarSensorWidget() override {}
 
     void readSensors() override;
 

@@ -12,8 +12,8 @@ namespace webotsQtUtils {
     Q_OBJECT
 
   public:
-    TouchSensorVectorialWidget(Device *device, QWidget *parent = NULL);
-    virtual ~TouchSensorVectorialWidget() {}
+    explicit TouchSensorVectorialWidget(Device *device, QWidget *parent = NULL);
+    virtual ~TouchSensorVectorialWidget() override {}
 
   protected slots:
     void enable(bool enable) override;

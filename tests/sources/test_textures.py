@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
-# Copyright 1996-2019 Cyberbotics Ltd.
+# Copyright 1996-2023 Cyberbotics Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -46,20 +46,21 @@ duplicatedTextures = [
     'noon_stormy_empty_bottom.jpg'
 ]
 
-duplicatedTexurePaths = [
+duplicatedTexturePaths = [
     'projects/samples/robotbenchmark',  # we don't want to change anything to robotbenchmark
     'projects/objects/buildings/protos/textures/colored_textures'
 ]
+duplicatedTexturePaths = [os.path.normpath(path) for path in duplicatedTexturePaths]
 
 
 def cmpHash(file1, file2):
     """Compare the hash of two files."""
     hash1 = hashlib.md5()
-    with open(file1) as f:
+    with open(file1, 'rb') as f:
         hash1.update(f.read())
         hash1 = hash1.hexdigest()
     hash2 = hashlib.md5()
-    with open(file2) as f:
+    with open(file2, 'rb') as f:
         hash2.update(f.read())
         hash2 = hash2.hexdigest()
     return hash1 == hash2
@@ -73,11 +74,14 @@ class TestTextures(unittest.TestCase):
         # 1. Get all the images from projects and resources
         images = []
         for directory in ['projects', 'resources']:
-            for rootPath, dirNames, fileNames in os.walk(os.environ['WEBOTS_HOME'] + os.sep + directory):
+            for rootPath, dirNames, fileNames in os.walk(os.path.join(os.path.normpath(os.environ['WEBOTS_HOME']), directory)):
                 for fileName in fnmatch.filter(fileNames, '*.png'):
                     image = os.path.join(rootPath, fileName)
                     images.append(image)
                 for fileName in fnmatch.filter(fileNames, '*.jpg'):
+                    # Ignore thumbnails
+                    if fileName.startswith('.'):
+                        continue
                     image = os.path.join(rootPath, fileName)
                     images.append(image)
         # 2. filter-out the images which are not textures
@@ -85,13 +89,14 @@ class TestTextures(unittest.TestCase):
         for image in images:
             if not (
                 'controllers' in image or
+                'docs' in image or
                 'icons' in image or
                 'libraries' in image or
                 'plugins' in image or
                 'simulator-sdk' in image or
-                'resources' + os.sep + 'images' in image or
-                'resources' + os.sep + 'web' in image or
-                'resources' + os.sep + 'wren' in image
+                os.path.join('resources', 'images') in image or
+                os.path.join('resources', 'web') in image or
+                os.path.join('resources', 'wren') in image
             ):
                 self.textures.append(image)
 
@@ -111,27 +116,35 @@ class TestTextures(unittest.TestCase):
                 is_perfect_power_of_two(im.size[0]) and is_perfect_power_of_two(im.size[1]),
                 msg='texture "%s": dimension is not a power of two: (%d, %d)' % (texture, im.size[0], im.size[1])
             )
+            im.close()
 
     def test_textures_profile(self):
         """Test that the released textures don't contain an ICC profile."""
         for texture in self.textures:
             im = Image.open(texture)
+
+            # Helpful code: uncomment the following lines to drop the ICC profile from every textures.
+            # if im.info.get("icc_profile") is not None:
+            #     im.info["icc_profile"] = None
+            #     im.save(texture)
+
             self.assertTrue(
                 im.info.get("icc_profile") is None,
                 msg='texture "%s" contains an ICC profile' % (texture)
             )
+            im.close()
 
     def test_textures_uniqueness(self):
         """Test that the released textures are unique."""
         toCompare = list(self.textures)  # copy
         for texture in self.textures:
             toCompare.remove(texture)
-            if any(path in texture for path in duplicatedTexurePaths):
+            if any(path in texture for path in duplicatedTexturePaths):
                 continue
             if os.path.basename(texture) in duplicatedTextures:
                 continue
             for comparedTexture in toCompare:
-                if any(path in comparedTexture for path in duplicatedTexurePaths):
+                if any(path in comparedTexture for path in duplicatedTexturePaths):
                     continue
                 if os.path.basename(comparedTexture) in duplicatedTextures:
                     continue

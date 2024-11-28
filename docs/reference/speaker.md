@@ -16,7 +16,7 @@ It can be used to play sounds and perform text-to-speech from the controller API
 
 #### `wb_speaker_play_sound`
 
-%tab-component
+%tab-component "language"
 
 %tab "C"
 
@@ -71,7 +71,7 @@ public class Speaker extends Device {
 
 %tab "MATLAB"
 
-```matlab
+```MATLAB
 wb_speaker_play_sound(left, right, sound, volume, pitch, balance, loop)
 ```
 
@@ -91,9 +91,7 @@ wb_speaker_play_sound(left, right, sound, volume, pitch, balance, loop)
 
 *plays a sound*
 
-This function allows the user to play a sound file.
-All major audio formats are supported, such as MP3, AIFF, AAC, WAV, FLAC and OGG Vorbis.
-For an exhaustive list, see [here](https://en.wikipedia.org/wiki/FFmpeg#Supported_formats).
+This function allows the user to play a WAV sound file.
 
 The function takes as arguments two speaker `WbDeviceTag` respectively for the left and right channels.
 If both channels should be played on the same speaker or the file has only one channel, it is possible to pass the same device tag for both left and right arguments.
@@ -113,15 +111,17 @@ Finally, the boolean `loop` argument defines if the sound will be played only on
 
 It is possible to change the volume, pitch, balance, and loop parameters of a sound currently playing by calling again the `wb_speaker_play_sound` function with the same speakers and `sound` arguments.
 
-> **Note**: The path to the sound file should be defined either absolutely or relatively.
-If defined relatively, it will be searched first relatively to the robot controller folder.
-If not found there and if the robot is a PROTO, it will be searched relatively to the PROTO folder of the robot.
+> **Note**: The path to the sound file can be defined either absolutely or relatively.
+If the file path is accessible by the robot controller either absolutely or relative to its working directory, it is loaded by the controller and its contents are streamed to Webots.
+If the file is not found by the controller, the given path is passed to Webots.
+Webots will first search for the path relative to the robot controller folder.
+If the file is not found relative to the controller folder and the robot is a PROTO, Webots will search for the sound file relative to the folder of the PROTO file.
 
 ---
 
 #### `wb_speaker_stop`
 
-%tab-component
+%tab-component "language"
 
 %tab "C"
 
@@ -175,7 +175,7 @@ public class Speaker extends Device {
 
 %tab "MATLAB"
 
-```matlab
+```MATLAB
 wb_speaker_stop(tag, sound)
 ```
 
@@ -205,7 +205,7 @@ It is possible to stop all the sounds currently playing in a speaker by setting 
 
 #### `wb_speaker_is_sound_playing`
 
-%tab-component
+%tab-component "language"
 
 %tab "C"
 
@@ -259,7 +259,7 @@ public class Speaker extends Device {
 
 %tab "MATLAB"
 
-```matlab
+```MATLAB
 wb_speaker_is_sound_playing(tag, sound)
 ```
 
@@ -292,7 +292,7 @@ It is possible to check if the speaker is playing any sound (including text-to-s
 #### `wb_speaker_is_speaking`
 #### `wb_speaker_speak`
 
-%tab-component
+%tab-component "language"
 
 %tab "C"
 
@@ -366,7 +366,7 @@ public class Speaker extends Device {
 
 %tab "MATLAB"
 
-```matlab
+```MATLAB
 engine = wb_speaker_get_engine(tag)
 language = wb_speaker_get_language(tag)
 success = wb_speaker_set_engine(tag, engine)

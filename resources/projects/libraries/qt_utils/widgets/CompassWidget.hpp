@@ -12,8 +12,8 @@ namespace webotsQtUtils {
     Q_OBJECT
 
   public:
-    CompassWidget(Device *device, QWidget *parent = NULL);
-    virtual ~CompassWidget() {}
+    explicit CompassWidget(Device *device, QWidget *parent = NULL);
+    virtual ~CompassWidget() override {}
 
   protected slots:
     void enable(bool enable) override;

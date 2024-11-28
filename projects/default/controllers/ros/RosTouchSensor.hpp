@@ -1,10 +1,10 @@
-// Copyright 1996-2019 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,6 +18,7 @@
 #include <webots/TouchSensor.hpp>
 #include "RosSensor.hpp"
 
+#include <webots_ros/get_float_array.h>
 #include <webots_ros/get_int.h>
 
 using namespace webots;
@@ -33,12 +34,15 @@ public:
   void rosDisable() override { cleanup(); }
   int rosSamplingPeriod() override { return mTouchSensor->getSamplingPeriod(); }
   bool getTypeCallback(webots_ros::get_int::Request &req, webots_ros::get_int::Response &res);
+  bool getLookupTable(webots_ros::get_float_array::Request &req, webots_ros::get_float_array::Response &res);
 
 private:
   void cleanup() { mTouchSensor->disable(); }
 
   TouchSensor *mTouchSensor;
   ros::ServiceServer mTypeServer;
+
+  ros::ServiceServer mLookupTableServer;
 };
 
 #endif  // ROS_TOUCH_SENSOR_HPP

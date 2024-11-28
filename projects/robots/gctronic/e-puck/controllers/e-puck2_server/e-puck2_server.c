@@ -1,11 +1,11 @@
 /*
- * Copyright 1996-2019 Cyberbotics Ltd.
+ * Copyright 1996-2023 Cyberbotics Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -51,16 +51,16 @@
 
 #define MOTOR_RATIO 0.00628
 
-static bool socket_init() {
 #ifdef _WIN32 /* initialize the socket API */
+static bool socket_init() {
   WSADATA info;
   if (WSAStartup(MAKEWORD(1, 1), &info) != 0) {
     fprintf(stderr, "Cannot initialize Winsock.\n");
     return false;
   }
-#endif
   return true;
 }
+#endif
 
 static bool socket_set_non_blocking(int fd) {
   if (fd < 0)
@@ -77,7 +77,7 @@ static bool socket_set_non_blocking(int fd) {
 static int socket_accept(int server_fd) {
   int cfd;
   struct sockaddr_in client;
-  struct hostent *client_info;
+  const struct hostent *client_info;
 #ifndef _WIN32
   socklen_t asize;
 #else
@@ -122,8 +122,10 @@ static bool socket_cleanup() {
 static int create_socket_server(int port) {
   int sfd, rc;
   struct sockaddr_in address;
-  if (socket_init() == -1)
+#ifdef _WIN32
+  if (!socket_init())
     return -1;
+#endif
   sfd = socket(AF_INET, SOCK_STREAM, 0);
   if (sfd == -1) {
     fprintf(stderr, "Cannot create socket.\n");
@@ -198,9 +200,7 @@ int main(int argc, char *argv[]) {
   image_buffer[0] = 0x01;
   while (wb_robot_step(time_step) != -1) {
     play_melody_step(time_step);
-    int n;
     struct timeval tv = {0, 0};
-    int number;
     if (fd == 0) {
       fd = socket_accept(sfd);
       if (fd > 0)
@@ -211,9 +211,9 @@ int main(int argc, char *argv[]) {
     if (fd) {
       FD_ZERO(&rfds);
       FD_SET(fd, &rfds);
-      number = select(fd + 1, &rfds, NULL, NULL, &tv);
+      int number = select(fd + 1, &rfds, NULL, NULL, &tv);
       if (number != 0) {
-        n = recv(fd, (char *)command_buffer, 21, 0);
+        int n = recv(fd, (char *)command_buffer, 21, 0);
         if (n < 0) {
 #ifdef _WIN32
           int e = WSAGetLastError();

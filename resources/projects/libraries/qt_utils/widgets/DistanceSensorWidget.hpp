@@ -12,8 +12,8 @@ namespace webotsQtUtils {
     Q_OBJECT
 
   public:
-    DistanceSensorWidget(Device *device, QWidget *parent = NULL);
-    virtual ~DistanceSensorWidget() {}
+    explicit DistanceSensorWidget(Device *device, QWidget *parent = NULL);
+    virtual ~DistanceSensorWidget() override {}
 
   protected slots:
     void enable(bool enable) override;

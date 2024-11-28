@@ -15,8 +15,8 @@ namespace webotsQtUtils {
     Q_OBJECT
 
   public:
-    LidarWidget(Device *device, QWidget *parent = NULL);
-    virtual ~LidarWidget() {}
+    explicit LidarWidget(Device *device, QWidget *parent = NULL);
+    virtual ~LidarWidget() override {}
 
     void readSensors() override;
 

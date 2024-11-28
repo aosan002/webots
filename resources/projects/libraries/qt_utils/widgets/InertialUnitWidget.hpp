@@ -12,8 +12,8 @@ namespace webotsQtUtils {
     Q_OBJECT
 
   public:
-    InertialUnitWidget(Device *device, QWidget *parent = NULL);
-    virtual ~InertialUnitWidget() {}
+    explicit InertialUnitWidget(Device *device, QWidget *parent = NULL);
+    virtual ~InertialUnitWidget() override {}
 
   protected slots:
     void enable(bool enable) override;

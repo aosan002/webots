@@ -1,10 +1,10 @@
-// Copyright 1996-2019 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,6 +18,7 @@
 #include <webots/Connector.hpp>
 #include "RosSensor.hpp"
 
+#include <webots_ros/get_bool.h>
 #include <webots_ros/set_bool.h>
 
 using namespace webots;
@@ -34,12 +35,14 @@ public:
   int rosSamplingPeriod() override { return mConnector->getPresenceSamplingPeriod(); }
 
   bool lockCallback(webots_ros::set_bool::Request &req, webots_ros::set_bool::Response &res);
+  bool isLockedCallback(webots_ros::get_bool::Request &req, webots_ros::get_bool::Response &res);
 
 private:
   void cleanup() { mConnector->disablePresence(); }
 
   Connector *mConnector;
   ros::ServiceServer mLockServer;
+  ros::ServiceServer mIsLockedServer;
 };
 
 #endif  // ROS_CONNECTOR_HPP

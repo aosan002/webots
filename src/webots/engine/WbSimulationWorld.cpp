@@ -1,10 +1,10 @@
-// Copyright 1996-2019 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,8 +15,11 @@
 #include "WbSimulationWorld.hpp"
 
 #include "WbBoundingSphere.hpp"
+#include "WbDownloadManager.hpp"
+#include "WbLog.hpp"
 #include "WbMassChecker.hpp"
 #include "WbNodeOperations.hpp"
+#include "WbNodeUtilities.hpp"
 #include "WbOdeContact.hpp"
 #include "WbOdeContext.hpp"
 #include "WbOdeDebugger.hpp"
@@ -32,6 +35,7 @@
 #include "WbSimulationState.hpp"
 #include "WbSoundEngine.hpp"
 #include "WbTemplateManager.hpp"
+#include "WbTokenizer.hpp"
 #include "WbViewpoint.hpp"
 #include "WbWrenRenderingContext.hpp"
 
@@ -45,8 +49,8 @@ WbSimulationWorld *WbSimulationWorld::instance() {
   return static_cast<WbSimulationWorld *>(WbWorld::instance());
 }
 
-WbSimulationWorld::WbSimulationWorld(WbProtoList *protos, WbTokenizer *tokenizer) :
-  WbWorld(protos, tokenizer),
+WbSimulationWorld::WbSimulationWorld(WbTokenizer *tokenizer) :
+  WbWorld(tokenizer),
   mCluster(NULL),
   mOdeContext(new WbOdeContext()),  // create ODE worlds and spaces
   mPhysicsPlugin(NULL),
@@ -54,13 +58,30 @@ WbSimulationWorld::WbSimulationWorld(WbProtoList *protos, WbTokenizer *tokenizer
   mSimulationHasRunAfterSave(false) {
   if (mWorldLoadingCanceled)
     return;
-  mSleepRealTime = (int)basicTimeStep();
+
+  emit worldLoadingStatusHasChanged(tr("Downloading assets"));
+  emit worldLoadingHasProgressed(0);
+  WbDownloadManager::instance()->reset();
+  root()->downloadAssets();
+  int progress = WbDownloadManager::instance()->progress();
+  while (progress < 100) {
+    QCoreApplication::processEvents(QEventLoop::WaitForMoreEvents);
+    int newProgress = WbDownloadManager::instance()->progress();
+    if (newProgress != progress) {
+      progress = newProgress;
+      emit worldLoadingHasProgressed(progress);
+    }
+  }
+
+  mSleepRealTime = basicTimeStep();
+
+  WbPerformanceLog *log = WbPerformanceLog::instance();
+  if (log)
+    log->setTimeStep(basicTimeStep());
 
   WbSimulationState::instance()->resetTime();
   // Reset random seed to ensure reproducible simulations.
   updateRandomSeed();
-  setThreadingPolicy();
-  connect(WbPreferences::instance(), &WbPreferences::changedByUser, this, &WbSimulationWorld::setThreadingPolicy);
   updateNumberOfThreads();
   connect(WbPreferences::instance(), &WbPreferences::changedByUser, this, &WbSimulationWorld::updateNumberOfThreads);
 
@@ -79,8 +100,6 @@ WbSimulationWorld::WbSimulationWorld(WbProtoList *protos, WbTokenizer *tokenizer
       mPhysicsPlugin = NULL;
     }
   }
-
-  emit worldLoadingStatusHasChanged(tr("Finalizing nodes"));
 
   setIsLoading(true);
   root()->finalize();
@@ -106,6 +125,9 @@ WbSimulationWorld::WbSimulationWorld(WbProtoList *protos, WbTokenizer *tokenizer
 
   WbSoundEngine::setWorld(this);
 
+  if (log)
+    log->stopMeasure(WbPerformanceLog::LOADING);
+
   connect(mTimer, &QTimer::timeout, this, &WbSimulationWorld::triggerStepFromTimer);
   const WbSimulationState *const s = WbSimulationState::instance();
   connect(s, &WbSimulationState::rayTracingEnabled, this, &WbSimulationWorld::rayTracingEnabled);
@@ -116,6 +138,13 @@ WbSimulationWorld::WbSimulationWorld(WbProtoList *protos, WbTokenizer *tokenizer
   connect(this, &WbSimulationWorld::cameraRenderingStarted, s, &WbSimulationState::cameraRenderingStarted);
   connect(worldInfo(), &WbWorldInfo::optimalThreadCountChanged, this, &WbSimulationWorld::updateNumberOfThreads);
   connect(worldInfo(), &WbWorldInfo::randomSeedChanged, this, &WbSimulationWorld::updateRandomSeed);
+
+  if (WbTokenizer::worldFileVersion() < WbVersion(2021, 1, 1))
+    WbLog::info(tr("You are using a world from an old version of Webots. The backwards compability algorithm will try to "
+                   "convert it. Refer to the wiki for more information: "
+                   "https://cyberbotics.com/doc/guide/upgrading-webots"));
+
+  WbNodeUtilities::fixBackwardCompatibility(WbWorld::instance()->root());
 }
 
 WbSimulationWorld::~WbSimulationWorld() {
@@ -157,7 +186,7 @@ void WbSimulationWorld::step() {
   const double timeStep = basicTimeStep();
 
   if (WbSimulationState::instance()->isRealTime()) {
-    const int elapsed = mLastRealTime.restart();
+    const int elapsed = mRealTimeTimer.restart();
 
     // computing the mean of an history of several elapsedTime
     // improves significantly the stability of the algorithm
@@ -177,9 +206,11 @@ void WbSimulationWorld::step() {
     //              (if the real-time mode is enabled, of course)
     // mean *= 0.90;
 
-    if (mean > timeStep && mSleepRealTime > 0.0)
+    if (mean > timeStep && mSleepRealTime > 0.0) {
       mSleepRealTime -= 0.03 * timeStep;
-    else if (mean < timeStep)
+      if (mSleepRealTime < 0)
+        mSleepRealTime = 0.0;
+    } else if (mean < timeStep)
       mSleepRealTime += 0.03 * timeStep;
 
     mTimer->start(mSleepRealTime);
@@ -229,11 +260,16 @@ void WbSimulationWorld::step() {
   if (mPhysicsPlugin)
     mPhysicsPlugin->stepEnd();
 
-  emit physicsStepEnded();
-
   // call postPhysicsStep on all Solids to assign new coordinates
   foreach (WbSolid *const solid, l)
     solid->postPhysicsStep();
+
+  emit physicsStepEnded();
+
+  if (mResetRequested) {
+    WbWorld::instance()->reset(false);
+    emit resetRequested(false);
+  }
 
   WbSimulationState::instance()->increaseTime(timeStep);
   viewpoint()->updateFollowUp();
@@ -242,7 +278,12 @@ void WbSimulationWorld::step() {
     log->stopMeasure(WbPerformanceLog::POST_PHYSICS_STEP);
 
   // update camera textures before main rendering
-  emit cameraRenderingStarted();
+  const QList<WbRobot *> robotList = robots();
+  for (int i = 0; i < robots().size(); ++i) {
+    WbRobot *robot = robotList[i];
+    if (robot->isControllerStarted())
+      robot->renderCameras();
+  }
 
   if (!mSimulationHasRunAfterSave) {
     mSimulationHasRunAfterSave = true;
@@ -250,24 +291,37 @@ void WbSimulationWorld::step() {
   }
 }
 
+void WbSimulationWorld::pauseStepTimer() {
+  mTimer->stop();
+}
+
+void WbSimulationWorld::restartStepTimer() {
+  const WbSimulationState::Mode mode = WbSimulationState::instance()->mode();
+  if (!mTimer->isActive() && (mode == WbSimulationState::REALTIME || mode == WbSimulationState::FAST))
+    mTimer->start();
+}
+
 void WbSimulationWorld::modeChanged() {
-  WbSimulationState::Mode mode = WbSimulationState::instance()->mode();
+  WbPerformanceLog *log = WbPerformanceLog::instance();
+
+  const WbSimulationState::Mode mode = WbSimulationState::instance()->mode();
   switch (mode) {
     case WbSimulationState::PAUSE:
       mTimer->stop();
       WbSoundEngine::setPause(true);
       WbSoundEngine::setMute(WbPreferences::instance()->value("Sound/mute").toBool());
+      if (log)
+        log->stopMeasure(WbPerformanceLog::SPEED_FACTOR);
       break;
     case WbSimulationState::STEP:
       WbSoundEngine::setMute(WbPreferences::instance()->value("Sound/mute").toBool());
       break;
     case WbSimulationState::REALTIME:
-      mLastRealTime.start();
+      mRealTimeTimer.start();
       WbSoundEngine::setPause(false);
       WbSoundEngine::setMute(WbPreferences::instance()->value("Sound/mute").toBool());
       mTimer->start(mSleepRealTime);
       break;
-    case WbSimulationState::RUN:
     case WbSimulationState::FAST:
       WbSoundEngine::setPause(false);
       WbSoundEngine::setMute(true);
@@ -286,14 +340,13 @@ void WbSimulationWorld::propagateBoundingObjectMaterialUpdate(bool onMenuAction)
 }
 
 void WbSimulationWorld::checkNeedForBoundingMaterialUpdate() {
-  const int mode = WbSimulationState::instance()->mode();
   const WbWrenRenderingContext *const context = WbWrenRenderingContext::instance();
   const int showAllBoundingObjects = context->isOptionalRenderingEnabled(WbWrenRenderingContext::VF_ALL_BOUNDING_OBJECTS);
 
-  if (!showAllBoundingObjects && mode == WbSimulationState::FAST)
+  if (!showAllBoundingObjects && !WbSimulationState::instance()->isRendering())
     return;
 
-  if (showAllBoundingObjects && mode != WbSimulationState::FAST) {
+  if (showAllBoundingObjects && WbSimulationState::instance()->isRendering()) {
     connect(this, &WbSimulationWorld::physicsStepEnded, this, &WbSimulationWorld::propagateBoundingObjectUpdate,
             Qt::UniqueConnection);
     propagateBoundingObjectMaterialUpdate(true);
@@ -320,14 +373,6 @@ void WbSimulationWorld::updateRandomSeed() {
   dRandSetSeed(seed);       // ODE random seed
 }
 
-void WbSimulationWorld::setThreadingPolicy() {
-  int policy = WbPreferences::instance()->value("General/threadingPolicy", 0).toInt();
-  if (policy == 1)
-    qputenv("OMP_WAIT_POLICY", QString("ACTIVE").toUtf8());
-  else
-    qputenv("OMP_WAIT_POLICY", QString("PASSIVE").toUtf8());
-}
-
 void WbSimulationWorld::storeLastSaveTime() {
   mSimulationHasRunAfterSave = false;
 }
@@ -336,7 +381,8 @@ bool WbSimulationWorld::simulationHasRunAfterSave() {
   return mSimulationHasRunAfterSave;
 }
 
-void WbSimulationWorld::reset() {
+void WbSimulationWorld::reset(bool restartControllers) {
+  WbWorld::reset(restartControllers);
   WbSimulationState::instance()->pauseSimulation();
   WbSimulationState::instance()->resetTime();
   WbTemplateManager::instance()->blockRegeneration(true);
@@ -347,18 +393,21 @@ void WbSimulationWorld::reset() {
       WbNodeOperations::instance()->deleteNode(node, true);
   }
   mAddedNode.clear();
-  root()->reset();
+  root()->reset("__init__");
   WbTemplateManager::instance()->blockRegeneration(false);
   mImmersionGeoms.clear();
   mCluster->handleInitialCollisions();
   dImmersionLinkGroupEmpty(mCluster->immersionLinkGroup());
   WbSoundEngine::stopAllSources();
-  foreach (WbRobot *const robot, robots()) {
-    if (robot->isControllerStarted())
-      robot->restartController();
+  if (restartControllers) {
+    foreach (WbRobot *const robot, robots()) {
+      if (robot->isControllerStarted())
+        robot->restartController();
+    }
   }
   updateRandomSeed();
-  WbSimulationState::instance()->resumeSimulation();
+  if (WbDownloadManager::instance()->progress() == 100)
+    WbSimulationState::instance()->resumeSimulation();
   if (mPhysicsPlugin)
     mPhysicsPlugin->init();
   storeLastSaveTime();
@@ -370,8 +419,8 @@ void WbSimulationWorld::storeAddedNodeIfNeeded(WbNode *node) {
   connect(node, &QObject::destroyed, this, &WbSimulationWorld::removeNodeFromAddedNodeList);
 }
 
-void WbSimulationWorld::removeNodeFromAddedNodeList(QObject *node) {
-  WbNode *n = static_cast<WbNode *>(node);
+void WbSimulationWorld::removeNodeFromAddedNodeList(const QObject *node) {
+  const WbNode *n = static_cast<const WbNode *>(node);
   mAddedNode.removeAll(n);
 }
 

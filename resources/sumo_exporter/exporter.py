@@ -3,7 +3,6 @@
 import optparse
 import os
 import sys
-import re
 
 from lxml import etree as ET
 
@@ -15,7 +14,8 @@ from road import Road
 # Parse the options.
 optParser = optparse.OptionParser(usage="usage: %prog --input=file.wbt --output=.")
 optParser.add_option("--input", dest="input", default="file.wbt", help="specifies the Webots .wbt file to open.")
-optParser.add_option("--output", dest="output", default=".", help="specifies the directory where to generate the SUMO network files.")
+optParser.add_option("--output", dest="output", default=".",
+                     help="specifies the directory where to generate the SUMO network files.")
 options, args = optParser.parse_args()
 
 # Check options.
@@ -27,9 +27,9 @@ if not os.path.isdir(options.output):
     sys.exit('Output directory does not exist. Please create it.')
 
 # Compute the output file paths.
-nodesFilePath = options.output + os.sep + 'sumo.nod.xml'
-edgesFilePath = options.output + os.sep + 'sumo.edg.xml'
-configFilePath = options.output + os.sep + 'sumo.sumocfg'
+nodesFilePath = os.path.join(options.output, 'sumo.nod.xml')
+edgesFilePath = os.path.join(options.output, 'sumo.edg.xml')
+configFilePath = os.path.join(options.output, 'sumo.sumocfg')
 
 # Check these files are not existing.
 if os.path.exists(nodesFilePath):
@@ -47,7 +47,7 @@ for roadType in roadTypes:
     for roadString in nodeExtractor.extractRootNodes(roadType):
         road = Road(roadString, roadType)
         Road.roads.append(road)
-crossroadTypes = ["Crossroad", "RoadIntersection"]
+crossroadTypes = ["Crossroad", "RoadIntersection", "LaneSeparation"]
 for crossroadType in crossroadTypes:
     for crossroadString in nodeExtractor.extractRootNodes(crossroadType):
         crossroad = Crossroad(crossroadType)

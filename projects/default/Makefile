@@ -1,28 +1,27 @@
-# Copyright 1996-2019 Cyberbotics Ltd.
+# Copyright 1996-2023 Cyberbotics Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-space :=
-space +=
-WEBOTS_HOME_PATH=$(subst $(space),\ ,$(strip $(subst \,/,$(WEBOTS_HOME))))
+null :=
+space := $(null) $(null)
+WEBOTS_HOME_PATH?=$(subst $(space),\ ,$(strip $(subst \,/,$(WEBOTS_HOME))))
 include $(WEBOTS_HOME_PATH)/resources/Makefile.os.include
 
 .PHONY: release debug profile clean
 
-TARGETS = controllers/braitenberg.Makefile libraries/vehicle.Makefile resources.Makefile
+TARGETS = controllers/braitenberg.Makefile libraries/vehicle.Makefile
 
-ifneq ($(OSTYPE),windows)
+ifeq ($(OSTYPE),linux)
 TARGETS += controllers/ros.Makefile
-ROS_DEPENDENCIES = libraries.Makefile controllers/ros/include.Makefile
 endif
 
 release debug profile: $(TARGETS)
@@ -30,17 +29,9 @@ ifneq ($(MESSAGE),)
 	+@echo -e $(MESSAGE)
 endif
 
-clean: $(TARGETS) libraries.Makefile
+clean: $(TARGETS)
 	@-rm -rf controllers/sumo_supervisor/*.pyc
 
-controllers/%.Makefile libraries/%.Makefile: $(ROS_DEPENDENCIES)
+controllers/%.Makefile libraries/%.Makefile:
 	+@echo "# make" $(MAKECMDGOALS) $(@:.Makefile=)
 	+@make -s -C $(@:.Makefile=) $(MAKECMDGOALS)
-
-%.Makefile controllers/ros/%.Makefile:
-	+@echo "# make" $(MAKECMDGOALS) $(@:.Makefile=)
-	+@make -s -C $(@:.Makefile=) $(MAKECMDGOALS)
-
-resources.Makefile:
-	@echo "#"; echo "# *** resources ***"
-	+@make -s -C resources $(MAKECMDGOALS)

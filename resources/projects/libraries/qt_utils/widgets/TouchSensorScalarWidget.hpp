@@ -12,8 +12,8 @@ namespace webotsQtUtils {
     Q_OBJECT
 
   public:
-    TouchSensorScalarWidget(Device *device, QWidget *parent = NULL);
-    virtual ~TouchSensorScalarWidget() {}
+    explicit TouchSensorScalarWidget(Device *device, QWidget *parent = NULL);
+    virtual ~TouchSensorScalarWidget() override {}
 
   protected slots:
     void enable(bool enable) override;

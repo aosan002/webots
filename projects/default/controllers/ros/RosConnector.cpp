@@ -1,10 +1,10 @@
-// Copyright 1996-2019 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,18 +18,20 @@
 RosConnector::RosConnector(Connector *connector, Ros *ros) :
   RosSensor(connector->getName() + "/presence_sensor", connector, ros) {
   std::string fixedDeviceName = RosDevice::fixedDeviceName();
-  mLockServer = RosDevice::rosAdvertiseService((ros->name()) + '/' + fixedDeviceName + "/lock", &RosConnector::lockCallback);
+  mLockServer = RosDevice::rosAdvertiseService(fixedDeviceName + "/lock", &RosConnector::lockCallback);
+  mIsLockedServer = RosDevice::rosAdvertiseService(fixedDeviceName + "/is_locked", &RosConnector::isLockedCallback);
   mConnector = connector;
 }
 
 RosConnector::~RosConnector() {
   mLockServer.shutdown();
+  mIsLockedServer.shutdown();
   cleanup();
 }
 
 ros::Publisher RosConnector::createPublisher() {
   webots_ros::Int8Stamped type;
-  std::string topicName = mRos->name() + '/' + RosDevice::fixedDeviceName() + "/presence";
+  std::string topicName = RosDevice::fixedDeviceName() + "/presence";
   return RosDevice::rosAdvertiseTopic(topicName, type);
 }
 
@@ -37,11 +39,13 @@ ros::Publisher RosConnector::createPublisher() {
 void RosConnector::publishValue(ros::Publisher publisher) {
   webots_ros::Int8Stamped value;
   value.header.stamp = ros::Time::now();
-  value.header.frame_id = mRos->name() + '/' + RosDevice::fixedDeviceName();
+  value.header.frame_id = mFrameIdPrefix + RosDevice::fixedDeviceName();
   value.data = mConnector->getPresence();
   publisher.publish(value);
 }
 
+// cppcheck-suppress constParameter
+// cppcheck-suppress constParameterCallback
 bool RosConnector::lockCallback(webots_ros::set_bool::Request &req, webots_ros::set_bool::Response &res) {
   if (req.value) {
     mConnector->lock();
@@ -50,5 +54,10 @@ bool RosConnector::lockCallback(webots_ros::set_bool::Request &req, webots_ros::
     mConnector->unlock();
     res.success = true;
   }
+  return true;
+}
+
+bool RosConnector::isLockedCallback(webots_ros::get_bool::Request &req, webots_ros::get_bool::Response &res) {
+  res.value = mConnector->isLocked();
   return true;
 }
